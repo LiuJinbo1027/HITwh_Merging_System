@@ -3,8 +3,8 @@
 # 本文件由 contract.md 派生；改动契约时两处同步更新，且须双人确认。
 
 meta:
-  schema_version: "1.0-draft"
-  status: DRAFT # P1 末冻结 v1，此后字段变更须双人确认、先改 contract.md 再改代码
+  schema_version: "1.0"
+  status: FROZEN # P1 末冻结 v1，此后字段变更须双人确认、先改 contract.md 再改代码
   base_path: /api
   transport: "HTTP + JSON；前端经 Vite dev proxy /api/* → http://127.0.0.1:8080"
 
