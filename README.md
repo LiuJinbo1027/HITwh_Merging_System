@@ -8,6 +8,15 @@
 - 后端：C++17 + CMake + cpp-httplib + nlohmann/json（数据结构与算法为核心得分点）
 - 文档：接口契约见 [docs/contract.md](docs/contract.md)
 
+## 双人协作入口
+
+两份开发手册（分发给对应成员，按手册分阶段推进）：
+
+- [docs/manual_A.md](docs/manual_A.md) —— A：后端与算法（匹配引擎、HTTP 接口、状态机、P4 优化器）
+- [docs/manual_B.md](docs/manual_B.md) —— B：前端与文档（管理台 GUI、联调脚本、任务书/测试/结题报告）
+
+手册含环境准备、协作纪律、代码地图、P0-P4 分阶段任务与逐项验收标准（AC）。
+
 ## 快速开始
 
 ```bash
