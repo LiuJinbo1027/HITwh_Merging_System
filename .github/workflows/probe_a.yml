@@ -1,7 +1,4 @@
-# CI：每次 PR 与 main 推送自动验证（G1 起生效）。
-# 分阶段能力：G1 起 = 构建 + 单测 + 格式 + 前端构建；
-# P2 出现 scripts/smoke_api.sh 后自动追加端到端 smoke job（hashFiles 条件）。
-name: Probe2
+name: ProbeA
 
 on:
   push:
@@ -36,16 +33,3 @@ jobs:
         run: npm ci
       - name: 构建
         run: npm run build
-
-  # P2 起自动启用：scripts/smoke_api.sh 出现后，该 job 对 17 端点做端到端断言。
-  # smoke_api.sh 约定：自行启动 ./build/backend/merging_server（端口自选）并在结束时清理。
-  smoke:
-    runs-on: ubuntu-latest
-    needs: backend
-    if: hashFiles('scripts/smoke_api.sh') != ''
-    steps:
-      - uses: actions/checkout@v4
-      - name: 构建
-        run: cmake -S . -B build && cmake --build build -j2
-      - name: 端到端 smoke
-        run: ./scripts/smoke_api.sh

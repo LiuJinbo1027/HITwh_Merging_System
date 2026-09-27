@@ -1,0 +1,18 @@
+name: ProbeB
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    needs: backend
+    if: hashFiles('scripts/smoke_api.sh') != ''
+    steps:
+      - uses: actions/checkout@v4
+      - name: 构建
+        run: cmake -S . -B build && cmake --build build -j2
+      - name: 端到端 smoke
+        run: ./scripts/smoke_api.sh
