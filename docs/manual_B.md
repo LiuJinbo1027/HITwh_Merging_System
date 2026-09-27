@@ -55,7 +55,8 @@ frontend/src/
 └── components/
     ├── PassengerForm.vue  手动录入/修改表单（字段名与 API 完全一致）
     ├── VirtualControl.vue 虚拟生成参数表单
-    ├── GroupCard.vue / EventFeed.vue / StatBar.vue
+    └── GroupCard.vue      成团卡片
+（为控制工作量精简：StatBar 并入 ControlView、EventFeed 并入 EventsView，独立组件仅上述 3 个）
 ```
 
 api.js 用法（已写好的 P0 代码，直接用）：
@@ -70,11 +71,13 @@ mock 先行（P1 用）：后端接口未完成时，在视图里先写死假数
 
 ## 4. 分阶段任务
 
+> 总日程 3 周（含国庆假期一周，可远程协作）：P1-P4 每阶段 3-4 天，共压缩为 9/28-10/18；每阶段末跑 gate，未过 gate 不进入下一阶段。为控制工作量，组件精简合并（见 3 节地图注释）。
+
 ### P0 环境脚手架 —— ✅ 已完成（发起人完成，供你理解）
 
 交付：Vite 工程、`/api` 代理、健康状态页、`api.js` 全接口封装 + usePolling。G0 已通过，证据见 `docs/test_report.md`。你的工作从 P1 开始。
 
-### P1 前端静态视图（mock 先行，5-7 天）
+### P1 前端静态视图（mock 先行，3-4 天）
 
 - **触发时间**：完成第 1 节环境准备。
 - **交付物**：`views/PoolView.vue`、`views/GroupsView.vue` 静态版（App.vue 加 tab 切换）；与 A 逐字段核对 contract.md 的乘客字段（**你负责维护契约文档**，改动时 `docs/contract.yaml` 镜像同步更新）。
@@ -82,7 +85,7 @@ mock 先行（P1 用）：后端接口未完成时，在视图里先写死假数
 - **通过产物**：静态视图 PR 合入 main；契约冻结达成。
 - **失败路径**：静态视图未完成前不开始 P2 表单组件。
 
-### P2 smoke 脚本 + 状态机文档 + 表单组件（5-7 天）
+### P2 smoke 脚本 + 状态机文档 + 表单组件（3-4 天）
 
 - **触发时间**：A 的 P2 PR 合入 main（后端 17 端点可用）。
 - **交付物**：`scripts/smoke_api.sh`（按 contract.md 逐条 curl 断言，成功路径 code=0 / 预期错误码，与 A 合写）；`docs/state_machine.md`（ASCII 状态图 + 转移表，与 A 代码逐条一致，A 校对）；`components/PassengerForm.vue`、`VirtualControl.vue` 接真实接口（ControlView 可录入乘客 / 生成虚拟乘客）。
@@ -90,7 +93,7 @@ mock 先行（P1 用）：后端接口未完成时，在视图里先写死假数
 - **通过产物**：smoke + 文档 + 表单 PR 合入 main。
 - **失败路径**：smoke 未全绿前不开始 P3 事件流轮询。
 
-### P3 四视图 + 事件流 + 一键演示（5-7 天）
+### P3 四视图 + 事件流 + 一键演示（3-4 天）
 
 - **交付物**：`views/EventsView.vue`（since_id 增量轮询）+ `EventFeed`；ControlView 完整化（自动匹配 / 虚拟流开关）；PoolView 同意/拒绝按钮；`scripts/run_demo.sh`（起后端 → 起前端 → 启动虚拟流 → 开启自动匹配 → 成团演示）。
 - **逐项检查（AC）**：
@@ -101,7 +104,7 @@ mock 先行（P1 用）：后端接口未完成时，在视图里先写死假数
 - **通过产物**：双方交叉验收（A 跑通 run_demo，你跑通 ctest+smoke）记录入 test_report.md；四视图截图入测试报告。
 - **失败路径**：交叉验收不过，继续修本分支。
 
-### P4 实验 + 四份文档（5-7 天，弹性）
+### P4 实验 + 四份文档（3-4 天，弹性）
 
 - **交付物**：`docs/experiments.md`（固定种子 100 乘客分别跑 `/api/match/trigger` 与 `/api/match/optimize`，收集：平均每车人数 / 成团率 / 池大小 / 偏好满足率，表格 + 结论）；`docs/taskbook.md` 定稿；`docs/test_report.md` 定稿（G0-G4 全部 AC 证据）；`docs/final_report.md` 定稿。
 - **逐项检查（AC）**：AC-4.1 实验数据表（optimize ≥ 贪心，由 A 提供 optimize 接口）；AC-4.3 四份文档互相引用、证据带 AC 编号、结题报告含状态机图 + 实验对比表 + 分工说明。

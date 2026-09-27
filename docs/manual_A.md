@@ -70,11 +70,13 @@ backend/tests/            doctest 单测: test_<模块>.cpp（一个模块一个
 
 ## 4. 分阶段任务
 
+> 总日程 3 周（含国庆假期一周，可远程协作）：P1-P4 每阶段 3-4 天，共压缩为 9/28-10/18；每阶段末跑 gate，未过 gate 不进入下一阶段。
+
 ### P0 环境脚手架 —— ✅ 已完成（发起人完成，供你理解）
 
 交付：vendor 单头库（third_party：httplib v0.20.1 / nlohmann-json v3.11.3 / doctest v2.4.11）、CMake 工程、`/api/health`、统一信封、前端骨架。G0 已通过，证据见 `docs/test_report.md`。你的工作从 P1 开始。
 
-### P1 数据结构 + 贪心引擎 + 单测（当前任务，5-7 天）
+### P1 数据结构 + 贪心引擎 + 单测（当前任务，3-4 天）
 
 - **触发时间**：完成第 1 节环境准备。
 - **交付物**：`backend/src/{model,time_bucket,pool,engine}.{h,cpp}`；`backend/tests/test_time_bucket.cpp`、`test_engine.cpp`；`backend/CMakeLists.txt` 注册 ctest。
@@ -129,7 +131,7 @@ run_once():
 - `TimeWindow::overlaps / depart_min_with` 放 model.h，单测最先覆盖它们。
 - P1 不写 HTTP 层：引擎直接对 `MatchPool` 操作，测试直接构造乘客数据。
 
-### P2 HTTP 接口 + 状态机 + 虚拟乘客（5-7 天）
+### P2 HTTP 接口 + 状态机 + 虚拟乘客（3-4 天）
 
 - **触发时间**：P1 PR 合入 main。
 - **交付物**：`backend/src/{state_machine,virtual_source,event_log,service}.{h,cpp}` + http_server 路由扩展（17 个端点全实现）；`backend/tests/test_state_machine.cpp`、`test_virtual_source.cpp`、`test_service.cpp`；`scripts/smoke_api.sh`（与 B 合写）。
@@ -157,14 +159,14 @@ run_once():
 
 虚拟乘客自动同意（放在 StateMachine::tick 内）：`is_virtual==true` 的成员在提案内停留 ≥ `virtual_agree_delay_ms` 后，以 `virtual_agree_prob` 概率 agree，否则 reject。参数均在 `/api/config`。
 
-### P3 配合联调（5-7 天，你这边工作量小）
+### P3 配合联调（3-4 天，你这边工作量小）
 
 - **你的职责**：修 B 联调暴露的后端 bug（事件字段、边界、返回结构）；交叉验收——在自己机器上跑通 B 的 `scripts/run_demo.sh`；在 docs/test_report.md 补你侧证据。
 - **通过产物**：双方交叉验收记录写入 test_report.md。
 
-### P4 进阶算法 + 实验 + 报告（5-7 天，弹性）
+### P4 进阶算法 + 实验 + 报告（3-4 天，弹性）
 
-- **交付物**：`backend/src/optimizer.{h,cpp}`（n≤50 时枚举全部可行 4 人组 + 匈牙利最大权匹配；权重 = 拼满度 + 等待收益 − 性别惩罚；n>50 回退贪心）+ `test_optimizer.cpp`；`docs/design.md` 理论章节（你写）。
+- **交付物**：`backend/src/optimizer.{h,cpp}`（n≤30 时枚举全部可行 4 人组 + 匈牙利最大权匹配；权重 = 拼满度 + 等待收益 − 性别惩罚；n>30 回退贪心。**时间不足则降级为暴力枚举对照实验**，不影响验收）+ `test_optimizer.cpp`；`docs/design.md` 理论章节（你写）。
 - **逐项检查（AC）**：
   - AC-4.1 固定种子 100 乘客：optimize 平均每车人数 ≥ 贪心、成团率不降低（数据由 B 跑实验，你提供 `/api/match/optimize`）。
   - AC-4.2 n≤10 时 optimize 与暴力枚举最优解一致（穷举所有分组，断言目标值相等）。
