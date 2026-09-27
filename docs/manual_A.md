@@ -37,8 +37,8 @@ curl http://127.0.0.1:8080/api/health         # 应返回 {"code":0,...}
 
 1. **分支**：你只用 `a/<step>-<名>` 前缀（如 `a/p1-engine`）；B 用 `b/`。从最新 main 切出。
 2. **提交信息**：`type(scope): summary`，如 `feat(engine): 时间桶候选查询`、`fix(api): 同意接口 40901 误报`、`test(engine): 性别偏好穷举断言`。
-3. **PR 流程**：推送分支 → GitHub 建 PR（写明做了什么 + 怎么验证）→ 对方评审 → 满足 5 条后 Squash and merge 到 main → 删远端分支。
-4. **评审 5 条**：① 构建 + ctest 全绿 ② format_check 通过 ③ 改了 `/api` 字段时 contract.md 已同步且 PR 描述标注「接口变更」并 @ 对方 ④ 新功能带单测或 smoke 步骤 ⑤ 一个 PR 只做一件事。
+3. **PR 流程**：推送分支 → GitHub 建 PR（写明做了什么 + 怎么验证）→ **等 CI 全绿**（GitHub Actions 自动跑：构建 + ctest + 格式检查 + 前端构建；P2 起加 smoke）→ 对方评审 → 满足 5 条后 Squash and merge 到 main → 删远端分支。
+4. **评审 5 条**：① 构建 + ctest 全绿（CI 自动把关，本地同样先自查）② format_check 通过 ③ 改了 `/api` 字段时 contract.md 已同步（含 contract.yaml 镜像）且 PR 描述标注「接口变更」并 @ 对方 ④ 新功能带单测或 smoke 步骤 ⑤ 一个 PR 只做一件事。
 5. **接口变更**：先改 `docs/contract.md` 再改代码，同 PR 提交，对方确认后才能合并。
 6. **同步节奏**：每 2-3 天与 B 对照一次 contract.md 增量；每阶段结束双方一起在 main 上跑本阶段 gate。
 

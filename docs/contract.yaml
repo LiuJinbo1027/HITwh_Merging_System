@@ -1,0 +1,156 @@
+# 机场拼车匹配工具 · 接口契约（机器可读镜像，供 AI / 工具直接解析）
+# 唯一事实源: docs/contract.md —— 两处不一致时以 contract.md 为准。
+# 本文件由 contract.md 派生；改动契约时两处同步更新，且须双人确认。
+
+meta:
+  schema_version: "1.0-draft"
+  status: DRAFT # P1 末冻结 v1，此后字段变更须双人确认、先改 contract.md 再改代码
+  base_path: /api
+  transport: "HTTP + JSON；前端经 Vite dev proxy /api/* → http://127.0.0.1:8080"
+
+global:
+  envelope:
+    success: { code: 0, message: "ok", data: "<对象>" }
+    failure: { code: "<非0>", message: "<错误说明>", data: null }
+  naming: snake_case
+  time:
+    date_format: "YYYY-MM-DD"
+    start_min: { type: int, range: [0, 1440] }
+    end_min: { type: int, range: [0, 1440], constraint: ">= start_min" }
+    frozen_rules: ["单日", "单方向（市区→机场）", "不支持跨午夜"]
+  overlap_rule: "max(各成员 start_min) <= min(各成员 end_min) —— 时间窗有交集即可同车"
+  vehicle_capacity: 4
+  min_group_size_default: 2
+
+enums:
+  gender: [male, female]
+  gender_preference:
+    - { value: none, semantics: "无偏好" }
+    - { value: female_only, semantics: "同车其他成员须全部为 female" }
+    - { value: male_only, semantics: "同车其他成员须全部为 male" }
+  passenger_status: [waiting, proposed, grouped, completed, cancelled]
+
+types:
+  passenger:
+    passenger_id: { type: int, server_generated: true, description: "全局唯一自增" }
+    party_size: { type: int, range: [1, 4], required: true }
+    gender: { type: "enum:gender", required: true }
+    gender_preference: { type: "enum:gender_preference", required: true }
+    date: { type: string, format: "YYYY-MM-DD", required: true }
+    start_min: { type: int, range: [0, 1440], required: true }
+    end_min: { type: int, range: [0, 1440], constraint: ">= start_min", required: true }
+    status: { type: "enum:passenger_status", server_generated: true }
+    proposal_id: { type: "int|null", server_generated: true }
+    group_id: { type: "int|null", server_generated: true }
+    is_virtual: { type: bool, server_generated: true, description: "true 时在提案内自动同意（概率见 config）" }
+  proposal:
+    proposal_id: int
+    member_ids: { type: "[int]", description: "2-4 人，人数之和 <= 4" }
+    depart_min: { type: int, description: "= max(成员 start_min)" }
+    deadline_ms: { type: int, description: "now + proposal_ttl_ms" }
+  group:
+    group_id: int
+    member_ids: "[int]"
+    depart_min: int
+    formed_at_ms: int
+  event:
+    event_id: { type: int, description: "全局单调递增，前端以 since_id 增量轮询" }
+    event_type: "enum:event_types"
+    payload: { type: object, description: "按 event_type 变化，见 event_types" }
+    ts_ms: int
+  config:
+    proposal_ttl_ms: { default: 60000, description: "同意等待超时（FR-7）" }
+    virtual_agree_prob: { default: 0.9, range: [0, 1], description: "虚拟乘客自动同意概率，拒绝以演示重匹配" }
+    virtual_agree_delay_ms: { default: 2000, description: "虚拟乘客同意前思考延迟" }
+    auto_match_interval_ms: { default: 5000, description: "自动匹配周期，0=关闭" }
+    stream_interval_ms: { default: 3000, description: "虚拟流生成周期" }
+    stream_batch_size: { default: 5, description: "每批生成人数" }
+  stats:
+    pool_size: int
+    group_count: int
+    avg_group_size: float
+    female_ratio: float
+    gender_pref_satisfied_ratio: float
+
+event_types:
+  - { type: created, payload: { passenger_id: int } }
+  - { type: updated, payload: { passenger_id: int } }
+  - { type: cancelled, payload: { passenger_id: int } }
+  - { type: proposed, payload: { proposal_id: int, member_ids: "[int]", depart_min: int } }
+  - { type: agreed, payload: { passenger_id: int, proposal_id: int } }
+  - { type: rejected, payload: { passenger_id: int, proposal_id: int } }
+  - { type: proposal_expired, payload: { proposal_id: int, member_ids: "[int]" } }
+  - { type: group_formed, payload: { group_id: int, member_ids: "[int]", depart_min: int } }
+  - { type: group_dissolved, payload: { group_id: int, member_ids: "[int]" } }
+  - { type: completed, payload: { group_id: int } }
+  - { type: virtual_generated, payload: { count: int, passenger_ids: "[int]" } }
+  - { type: stream_started, payload: {} }
+  - { type: stream_stopped, payload: {} }
+  - { type: config_changed, payload: { config: "types:config" } }
+  - { type: auto_match_started, payload: {} }
+  - { type: auto_match_stopped, payload: {} }
+  - { type: reset, payload: {} }
+
+errors:
+  - { code: 40001, meaning: "参数缺失/越界", example: "party_size=5、start_min=-1" }
+  - { code: 40401, meaning: "资源不存在", example: "未知 passenger_id" }
+  - { code: 40901, meaning: "状态冲突", example: "对 waiting 乘客 agree、对已取消者改时间" }
+  - { code: 40902, meaning: "时间窗非法", example: "start_min > end_min" }
+  - { code: 40903, meaning: "重复启动", example: "虚拟流已在运行" }
+  - { code: 50001, meaning: "内部错误（兜底）", example: "" }
+
+endpoints:
+  - { method: POST, path: /api/passengers, fr: FR-1, summary: "注册拼车者",
+      request: [party_size, gender, gender_preference, date, start_min, end_min],
+      response: { passenger_id: int, status: waiting }, errors: [40001] }
+  - { method: PUT, path: /api/passengers/{id}, fr: FR-2, summary: "修改任意子集（改时间按状态机转移）",
+      request: [party_size, gender, gender_preference, date, start_min, end_min], request_note: "任意子集",
+      response: { passenger_id: int }, errors: [40001, 40401, 40901, 40902] }
+  - { method: DELETE, path: /api/passengers/{id}, fr: FR-3, summary: "取消（团内则团解散、其余回池）",
+      response: { passenger_id: int, status: cancelled }, errors: [40401, 40901] }
+  - { method: POST, path: /api/passengers/{id}/agree, fr: FR-6, summary: "同意提案；全员同意则成团",
+      response: { proposal_id: int, proposal_state: "grouped|pending" }, errors: [40401, 40901] }
+  - { method: POST, path: /api/passengers/{id}/reject, fr: FR-6, summary: "拒绝提案；提案解散回池",
+      response: { proposal_id: int, proposal_state: dissolved }, errors: [40401, 40901] }
+  - { method: POST, path: /api/match/trigger, fr: FR-4, summary: "手动触发一轮贪心匹配",
+      response: { proposals: "[{proposal_id, member_ids, depart_min}]" }, errors: [] }
+  - { method: POST, path: /api/match/optimize, fr: FR-17, summary: "全局优化匹配（P4 弹性）",
+      response: { proposals: "[{proposal_id, member_ids, depart_min}]" }, errors: [] }
+  - { method: GET, path: /api/match/pool, fr: FR-10, summary: "匹配池（waiting 乘客，按 start_min 升序）",
+      response: { passengers: "[types:passenger]" }, errors: [] }
+  - { method: GET, path: /api/match/groups, fr: FR-11, summary: "已成团列表",
+      response: { groups: "[{group_id, member_ids, depart_min, formed_at_ms}]" }, errors: [] }
+  - { method: GET, path: /api/events, fr: FR-12, summary: "事件流增量轮询",
+      query: { since_id: { type: int, default: 0 }, limit: { type: int, default: 100 } },
+      response: { next_since_id: int, events: "[types:event]" }, errors: [] }
+  - { method: GET, path: /api/stats, fr: FR-13, summary: "统计指标",
+      response: { pool_size: int, group_count: int, avg_group_size: float, female_ratio: float,
+        gender_pref_satisfied_ratio: float }, errors: [] }
+  - { method: POST, path: /api/groups/{id}/complete, fr: FR-14, summary: "行程完成（到点自动或手动）",
+      response: { group_id: int, status: completed }, errors: [40401, 40901] }
+  - { method: POST, path: /api/virtual/generate, fr: FR-8, summary: "批量生成虚拟乘客",
+      request: [count, "分布参数（含性别偏好分布特征）"],
+      response: { generated: "[passenger_id]" }, errors: [40001] }
+  - { method: POST, path: /api/virtual/stream/start, fr: FR-9, summary: "启动定时虚拟乘客流",
+      request: [interval_ms, batch_size], response: { running: true }, errors: [40903] }
+  - { method: POST, path: /api/virtual/stream/stop, fr: FR-9, summary: "停止虚拟乘客流",
+      response: { running: false }, errors: [] }
+  - { method: GET, path: /api/config, fr: FR-15, summary: "查询配置", response: "types:config", errors: [] }
+  - { method: PUT, path: /api/config, fr: FR-15, summary: "修改配置（即改即生效）",
+      request: "types:config（任意子集）", response: "types:config", errors: [40001] }
+  - { method: POST, path: /api/reset, fr: FR-16, summary: "清空全部状态（演示用）",
+      response: {}, errors: [] }
+  - { method: GET, path: /api/health, fr: "联调", summary: "健康检查",
+      response: { uptime_ms: int }, errors: [] }
+
+state_machine:
+  - { from: waiting, event: "引擎提案", to: proposed, note: "记 proposal_id" }
+  - { from: waiting, event: "改时间", to: waiting, note: "重入新桶" }
+  - { from: waiting, event: "取消", to: cancelled }
+  - { from: proposed, event: "同意", to: "grouped|proposed", note: "全员同意→grouped；否则仍 proposed" }
+  - { from: proposed, event: "拒绝", to: waiting, note: "提案解散→全体成员回池可重匹配" }
+  - { from: proposed, event: "超时(proposal_ttl_ms)", to: waiting, note: "同上，事件记 proposal_expired" }
+  - { from: proposed, event: "改时间/取消", to: "waiting|cancelled", note: "提案解散、其余成员回池；本人按新窗重入桶或 cancelled" }
+  - { from: grouped, event: "改时间/取消", to: "waiting|cancelled", note: "团解散→其余成员回池；本人重入桶或 cancelled" }
+  - { from: grouped, event: "到点(depart_min)/手动 complete", to: completed }
+  - virtual_auto_agree: "is_virtual==true 的成员在提案内停留 >= virtual_agree_delay_ms 后，以 virtual_agree_prob 概率 agree，否则 reject（StateMachine::tick 内处理）"

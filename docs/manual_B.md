@@ -36,8 +36,8 @@ npm run dev                 # http://127.0.0.1:5173，/api 自动代理到后端
 
 1. **分支**：你只用 `b/<step>-<名>` 前缀（如 `b/p1-mock-views`）；A 用 `a/`。从最新 main 切出。
 2. **提交信息**：`type(scope): summary`，如 `feat(views): 匹配池静态表格`、`docs(contract): 冻结 v1 字段核对`。
-3. **PR 流程**：推送分支 → GitHub 建 PR（写明做了什么 + 怎么验证）→ 对方评审 → 满足 5 条后 Squash and merge 到 main → 删远端分支。
-4. **评审 5 条**：① 构建 + ctest 全绿 ② format_check 通过 ③ 改了 `/api` 字段时 contract.md 已同步且 PR 描述标注「接口变更」并 @ 对方 ④ 新功能带单测或 smoke 步骤 ⑤ 一个 PR 只做一件事。
+3. **PR 流程**：推送分支 → GitHub 建 PR（写明做了什么 + 怎么验证）→ **等 CI 全绿**（GitHub Actions 自动跑：构建 + ctest + 格式检查 + 前端构建；P2 起加 smoke）→ 对方评审 → 满足 5 条后 Squash and merge 到 main → 删远端分支。
+4. **评审 5 条**：① 构建 + ctest 全绿（CI 自动把关，本地同样先自查）② format_check 通过 ③ 改了 `/api` 字段时 contract.md 已同步（含 contract.yaml 镜像）且 PR 描述标注「接口变更」并 @ 对方 ④ 新功能带单测或 smoke 步骤 ⑤ 一个 PR 只做一件事。
 5. **接口变更**：先改 `docs/contract.md` 再改代码，同 PR 提交，对方确认后才能合并。
 6. **同步节奏**：每 2-3 天与 A 对照一次 contract.md 增量；每阶段结束双方一起在 main 上跑本阶段 gate。
 
@@ -77,7 +77,7 @@ mock 先行（P1 用）：后端接口未完成时，在视图里先写死假数
 ### P1 前端静态视图（mock 先行，5-7 天）
 
 - **触发时间**：完成第 1 节环境准备。
-- **交付物**：`views/PoolView.vue`、`views/GroupsView.vue` 静态版（App.vue 加 tab 切换）；与 A 逐字段核对 contract.md 的乘客字段（**你负责维护契约文档**）。
+- **交付物**：`views/PoolView.vue`、`views/GroupsView.vue` 静态版（App.vue 加 tab 切换）；与 A 逐字段核对 contract.md 的乘客字段（**你负责维护契约文档**，改动时 `docs/contract.yaml` 镜像同步更新）。
 - **逐项检查（AC）**：字段名与 contract.md 完全一致；mock 数据渲染正确；`npm run build` 退出码 0；本阶段末 A/B 一起确认 contract.md 字段，由 A 的 P1 PR 把版本头改 `1.0`、status 改 `FROZEN`。
 - **通过产物**：静态视图 PR 合入 main；契约冻结达成。
 - **失败路径**：静态视图未完成前不开始 P2 表单组件。

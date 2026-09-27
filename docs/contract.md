@@ -2,6 +2,7 @@
 
 - schema_version: 1.0-draft
 - status: DRAFT（P1 末冻结 v1，此后字段变更须双人确认、先改本文档再改代码）
+- 机器可读镜像：[contract.yaml](contract.yaml)（供 AI/工具解析；两处不一致以本文件为准）
 - 通信：HTTP + JSON，前端经 Vite dev proxy 访问 `/api/*` → `http://127.0.0.1:8080`
 
 ## 0. 全局约定
