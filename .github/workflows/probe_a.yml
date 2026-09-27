@@ -1,0 +1,35 @@
+name: ProbeA
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 安装 clang-format（与本地同为 pip 源，版本对齐）
+        run: pip install clang-format
+      - name: 构建
+        run: cmake -S . -B build && cmake --build build -j2
+      - name: 单测（ctest）
+        run: ctest --test-dir build --output-on-failure
+      - name: 格式检查
+        run: ./scripts/format_check.sh
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: 安装依赖
+        run: npm ci
+      - name: 构建
+        run: npm run build
