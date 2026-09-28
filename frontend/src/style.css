@@ -1,0 +1,127 @@
+/* 全局共享样式：设计变量（CSS 自定义属性）+ 跨视图复用的基础类（.tag / .btn / .card）。
+ * 各视图独有的布局写在组件内 <style scoped>，这里只放「多个视图都会用」的东西。
+ * main.js 中 import 一次，全局生效。 */
+
+:root {
+  /* 基础色板：一个主色 + 语义色，全部通过变量引用，统一换肤只改这里 */
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --border: #e2e5ea;
+  --text: #1f2937;
+  --muted: #6b7280;
+  --primary: #2563eb;
+  --danger: #dc2626;
+
+  /* 状态色：亮底深字，保证对比度（P3 事件流视图复用同一套） */
+  --tag-waiting-bg: #e0f2fe;
+  --tag-waiting-fg: #0369a1;
+  --tag-proposed-bg: #fef3c7;
+  --tag-proposed-fg: #b45309;
+  --tag-grouped-bg: #dcfce7;
+  --tag-grouped-fg: #15803d;
+  --tag-completed-bg: #f1f5f9;
+  --tag-completed-fg: #64748b;
+  --tag-cancelled-bg: #fee2e2;
+  --tag-cancelled-fg: #b91c1c;
+  --tag-virtual-bg: #f3e8ff;
+  --tag-virtual-fg: #7e22ce;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* ---- 状态/枚举标签：数据枚举值 → 中文标签 + 颜色，多处视图复用 ---- */
+.tag {
+  display: inline-block;
+  padding: 1px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.tag.waiting {
+  background: var(--tag-waiting-bg);
+  color: var(--tag-waiting-fg);
+}
+.tag.proposed {
+  background: var(--tag-proposed-bg);
+  color: var(--tag-proposed-fg);
+}
+.tag.grouped {
+  background: var(--tag-grouped-bg);
+  color: var(--tag-grouped-fg);
+}
+.tag.completed {
+  background: var(--tag-completed-bg);
+  color: var(--tag-completed-fg);
+}
+.tag.cancelled {
+  background: var(--tag-cancelled-bg);
+  color: var(--tag-cancelled-fg);
+}
+.tag.virtual {
+  background: var(--tag-virtual-bg);
+  color: var(--tag-virtual-fg);
+}
+
+/* ---- 按钮 ---- */
+.btn {
+  padding: 4px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+.btn:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.btn.primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.btn.primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+.btn.danger {
+  color: var(--danger);
+}
+.btn.danger:hover:not(:disabled) {
+  border-color: var(--danger);
+  background: #fef2f2;
+}
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ---- 卡片容器（成团卡片等） ---- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+/* 各视图共用的页头样式 */
+.head h2 {
+  margin: 0 0 2px;
+  font-size: 18px;
+}
+.head .hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
