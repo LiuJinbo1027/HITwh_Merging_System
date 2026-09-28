@@ -16,15 +16,15 @@
 
 | AC | 内容 | 结果 | 证据 |
 | --- | --- | --- | --- |
-| G1-1 | mock 字段名与 contract.md §1 完全一致 | 通过 | `frontend/src/mock.js` 逐字段核对；11 条乘客覆盖全部 5 种 status、3 种 gender_preference、is_virtual；同车时间窗重叠（max(start) ≤ min(end)）、depart_min = max(start)、每团 ≤4 人、偏好不满足不成团，均按契约规则手工校验 |
-| G1-2 | mock 数据渲染正确 | 通过 | `npm run dev` 后 Edge 无头浏览器 dump-dom：匹配池 9 列表头、11 行数据、状态标签计数与 mock 完全一致（waiting×3 / proposed×2 / grouped×3 / completed×2 / cancelled×1 / virtual×2）、时间窗转换全部正确、22 个按钮中仅 proposed 行 4 个可用；成团视图经 Vite SSR 渲染验证：团 #1/#2 两张卡片、总人数 computed 各 4 人、完成按钮 1 可用 1 禁用；截图见 [docs/images/G1_pool_view.png](images/G1_pool_view.png) |
+| G1-1 | mock 字段名与 contract.md §1 完全一致 | 通过 | `frontend/src/mock.js` 逐字段核对；8 条乘客覆盖 3 种非终态 status（waiting/proposed/grouped）、3 种 gender_preference、is_virtual；同车时间窗重叠（max(start) ≤ min(end)）、depart_min = max(start)、每团 ≤4 人、偏好不满足不成团，均按契约规则手工校验 |
+| G1-2 | mock 数据渲染正确 | 通过 | `npm run dev` 后 Edge 无头浏览器 dump-dom：匹配池 9 列表头、8 行数据、状态标签计数与 mock 完全一致（waiting×3 / proposed×2 / grouped×3 / virtual×1）、时间窗转换全部正确、16 个按钮中仅 proposed 行 4 个可用；成团视图经 Vite SSR 渲染验证：团 #1 卡片、总人数 computed 为 4 人；截图见 [docs/images/G1_pool_view.png](images/G1_pool_view.png) |
 | G1-3 | `npm run build` 退出码 0 | 通过 | `vite v8.3.1 building client environment for production... ✓ 26 modules transformed. ✓ built in 475ms`，exit 0 |
-| G1-4 | A/B 共同确认契约字段，A 的 P1 PR 将契约置 v1.0 / FROZEN | 待 A | — |
+| G1-4 | A/B 共同确认契约字段后冻结 v1.0 | 进行中 | 契约调整（FR-10 放宽、FR-11 明确）已由 B 写入 contract.md/contract.yaml，待 A 校对后置 FROZEN |
 
-> G1 备注（B 侧契约核对发现，冻结前需与 A 双人确认后改 contract.md，建议开 issue @A）：
-> 1. FR-10 `/api/match/pool` 仅返回 waiting，但 PoolView 需展示 proposed 乘客（同意/拒绝按钮的落点，见手册 §3），数据来源缺口；
-> 2. 无「按 id 查询乘客」的 GET 端点，`/api/match/groups` 响应仅 member_ids，成团卡片无法展示成员明细（性别/人数）；mock 已按明细渲染，接真实接口前需定方案；
-> 3. group 对象无 status 字段，已完成团的区分方式未约定（完成按钮禁用态依赖它）。
+> G1 备注（契约调整记录）：mock 先行阶段暴露 3 条契约缺口，经双人裁定已在 v1.0 草案中闭环（待 A 校对后冻结）：
+> 1. **FR-10 数据源缺口**（pool 仅返回 waiting，池视图无法展示 proposed 乘客）→ 已放宽：pool 返回非终态乘客 waiting/proposed/grouped；
+> 2. **无「按 id 查乘客」端点**（groups 仅 member_ids，卡片无成员明细）→ 由第 1 条解决：前端用 pool 数据 join（装配逻辑见 GroupsView）；
+> 3. **group 无 status**（已完成/已解散团的区分未约定）→ 已明确：FR-11 仅返回进行中的团，completed/dissolved 即时移除，无需状态字段。
 
 ## G2~G4 验收记录
 

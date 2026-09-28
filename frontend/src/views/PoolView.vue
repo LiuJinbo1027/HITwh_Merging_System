@@ -3,8 +3,8 @@
 // 字段名与 docs/contract.md §1 乘客字段逐字一致（P1 验收项）。
 import { mockPool } from '../mock'
 import { fmtMin, fmtDateShort } from '../format'
-// TODO(P2): 接 api.pool()。注意契约核对项：FR-10 的 pool 仅返回 waiting，
-// 而本视图还需展示 proposed 乘客（同意/拒绝按钮的落点），数据来源待与 A 确认。
+// TODO(P2): 接 api.pool()。FR-10 已调整为返回非终态乘客（waiting/proposed/grouped），
+// 同意/拒绝按钮落在 proposed 行，与契约 40901 状态冲突约束一致。
 
 // 枚举值 → 中文标签：映射表集中管理，改文案只动这里
 const STATUS_LABEL = {

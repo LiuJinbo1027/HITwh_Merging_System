@@ -6,8 +6,8 @@ import GroupCard from '../components/GroupCard.vue'
 // TODO(P2): 接 api.groups()。
 
 // mock 阶段把 member_ids 展开成成员对象，卡片才能显示性别/人数等细节。
-// TODO(P2) 契约核对项：/api/match/groups 目前只回 member_ids，且没有「按 id 查乘客」的
-// GET 端点，真实联调时成员明细的数据来源需要与 A 确认（在 contract.md 冻结前敲定）。
+// TODO(P2): 接 api.pool() + api.groups()。契约 FR-10 已放宽为返回非终态乘客
+// （含 grouped），真实联调时用 pool 数据做与这里相同的 join 即可拿到成员明细。
 const groups = mockGroups.map((g) => ({
   ...g,
   members: g.member_ids.map((id) => mockPool.find((p) => p.passenger_id === id)),

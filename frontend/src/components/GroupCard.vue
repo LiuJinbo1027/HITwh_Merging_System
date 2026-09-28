@@ -13,8 +13,8 @@ const props = defineProps({
 // 总人数 = Σ party_size（契约 vehicle_capacity：每团 ≤ 4 人）
 const totalSize = computed(() => props.members.reduce((sum, m) => sum + m.party_size, 0))
 
-// 全员 completed 说明行程已结束，「完成」按钮禁用（契约 FR-14 只对行程中的团有效）
-const isCompleted = computed(() => props.members.every((m) => m.status === 'completed'))
+// 注：契约 FR-11 规定 /api/match/groups 仅返回进行中的团（completed/dissolved 即时移除），
+// 因此卡片不需要「已完成」状态判断，「完成」按钮恒可用。
 
 function onComplete() {
   // TODO(P2): await api.completeGroup(props.group.group_id) 后由父视图刷新列表
@@ -28,7 +28,6 @@ const GENDER_LABEL = { male: '男', female: '女' }
     <header class="card-head">
       <span class="gid">团 #{{ group.group_id }}</span>
       <span class="depart">出发 {{ fmtMin(group.depart_min) }}</span>
-      <span v-if="isCompleted" class="tag completed">已完成</span>
     </header>
     <ul class="members">
       <li v-for="m in members" :key="m.passenger_id">
@@ -39,7 +38,7 @@ const GENDER_LABEL = { male: '男', female: '女' }
     </ul>
     <footer class="card-foot">
       <span class="meta">共 {{ totalSize }} 人 · 成团于 {{ fmtTime(group.formed_at_ms) }}</span>
-      <button class="btn primary" :disabled="isCompleted" @click="onComplete">完成</button>
+      <button class="btn primary" @click="onComplete">完成</button>
     </footer>
   </article>
 </template>
