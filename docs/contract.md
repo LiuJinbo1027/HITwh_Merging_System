@@ -39,8 +39,8 @@
 | POST | `/api/passengers/{id}/reject` | FR-6 拒绝提案；提案解散回池 → `{proposal_id, proposal_state:"dissolved"}` |
 | POST | `/api/match/trigger` | FR-4 手动触发一轮贪心匹配 → `{proposals:[{proposal_id, member_ids, depart_min}]}` |
 | POST | `/api/match/optimize` | FR-17（P4 弹性）全局优化匹配，返回同 trigger |
-| GET | `/api/match/pool` | FR-10 → `{passengers:[...]}`（waiting 状态，按 start_min 升序） |
-| GET | `/api/match/groups` | FR-11 → `{groups:[{group_id, member_ids, depart_min, formed_at_ms}]}` |
+| GET | `/api/match/pool` | FR-10 → `{passengers:[...]}`（非终态乘客：waiting / proposed / grouped，按 start_min 升序） |
+| GET | `/api/match/groups` | FR-11 → `{groups:[{group_id, member_ids, depart_min, formed_at_ms}]}`（仅进行中的团；completed / dissolved 即时移除） |
 | GET | `/api/events?since_id=0&limit=100` | FR-12 → `{next_since_id, events:[...]}` |
 | GET | `/api/stats` | FR-13 → `{pool_size, group_count, avg_group_size, female_ratio, gender_pref_satisfied_ratio}` |
 | POST | `/api/groups/{id}/complete` | FR-14 行程完成 → `{group_id, status:"completed"}` |
@@ -100,3 +100,6 @@ waiting →(引擎提案)→ proposed →(全员同意)→ grouped →(到点/�
 任意态 →(cancel)→ cancelled；waiting/proposed/grouped →(改时间)→ 重入桶/解散提案/解散团
 proposed →(拒绝/超时)→ 全体回 waiting 重匹配
 ```
+
+注：`/api/match/groups` 仅返回进行中的团——completed（到点/手动完成）与 dissolved（成员取消/改时间）
+的团即时从列表移除；其成员按各自终态从 pool 列表消失（completed）或回池重入（dissolved → waiting）。
