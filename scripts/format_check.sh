@@ -13,7 +13,9 @@ if [[ -z "${CLANG_FORMAT}" ]]; then
 fi
 
 cd "$(dirname "$0")/.."
-mapfile -t FILES < <(find backend -name '*.h' -o -name '*.cpp' | sort)
+# macOS 自带 bash 3.2 无 mapfile，改用 while 循环读入数组（Linux bash 4+ 同样兼容）
+FILES=()
+while IFS= read -r f; do FILES+=("$f"); done < <(find backend -name '*.h' -o -name '*.cpp' | sort)
 
 if [[ ${#FILES[@]} -eq 0 ]]; then
     echo "格式检查: 无 C++ 文件，跳过"
