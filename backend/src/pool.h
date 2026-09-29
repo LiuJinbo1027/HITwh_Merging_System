@@ -31,6 +31,11 @@ class MatchPool {
     // 全部 waiting 乘客 id，按 (start_min, id) 升序（扫描线顺序）
     std::vector<int> waiting_ids() const;
 
+    // 非终态乘客 id（waiting/proposed/grouped），按 (start_min, id) 升序。
+    // 契约 FR-10：/api/match/pool 返回非终态乘客——P2 service 层用本方法组装响应。
+    // 无独立索引：直接扫描 passengers_ 收集 + 排序（n 数百级、2s 轮询一次，成本可忽略）。
+    std::vector<int> active_ids() const;
+
     // 与 win 时间窗有交集的 waiting 乘客 id，升序
     std::vector<int> neighbors(const TimeWindow& win) const;
 

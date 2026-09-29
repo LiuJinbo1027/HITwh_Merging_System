@@ -59,6 +59,27 @@ std::vector<int> MatchPool::waiting_ids() const {
     return ids;
 }
 
+std::vector<int> MatchPool::active_ids() const {
+    std::vector<int> ids;
+    ids.reserve(passengers_.size());
+    for (const auto& [id, p] : passengers_) {
+        if (p.status == Status::kWaiting || p.status == Status::kProposed ||
+            p.status == Status::kGrouped) {
+            ids.push_back(id);
+        }
+    }
+    // 契约 FR-10：按 start_min 升序，同起点按 id 升序（与 waiting 扫描线排序键一致）
+    std::sort(ids.begin(), ids.end(), [this](int a, int b) {
+        const Passenger* pa = get(a);
+        const Passenger* pb = get(b);
+        if (pa->win.start_min != pb->win.start_min) {
+            return pa->win.start_min < pb->win.start_min;
+        }
+        return pa->id < pb->id;
+    });
+    return ids;
+}
+
 std::vector<int> MatchPool::neighbors(const TimeWindow& win) const {
     std::vector<int> ids = buckets_.candidates_in_window(win);
     // 桶索引只收 waiting 乘客；双保险过滤一次状态
