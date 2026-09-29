@@ -83,7 +83,7 @@ backend/tests/            doctest 单测: test_<模块>.cpp（一个模块一个
 - **逐项检查（AC）**：
   - AC-1.1 时间桶：插入/删除/窗口候选查询正确（含跨桶边界用例）。
   - AC-1.2 贪心正确性：固定输入 12 名乘客（见下方表）→ 3 个 4 人团，且每个团 `depart_min == max(成员 start_min)`。
-  - AC-1.3 性别偏好（穷举断言）：`female_only` 乘客在任何提案中不与男性同车；`male_only` 同理；冲突偏好（一女性偏好男 + 一男性偏好女同团）不可行。
+  - AC-1.3 性别偏好（穷举断言）：`female_only` 乘客在任何提案中不与男性同车；`male_only` 同理；交叉偏好（女限男 + 男限女）互相满足可同车——偏好只约束「其他成员」，不含本人（contract §1）。
   - AC-1.4 效率：n=500 名 waiting 乘客 `run_once` 耗时 < 200ms。
 - **通过产物**：ctest 全绿 + format_check 通过 + PR 合入 main；本 PR 内把 `docs/contract.md` 版本头改为 `1.0`、status 改 `FROZEN`（B 已确认字段）。
 - **失败路径**：只能在本分支继续修；不许开始 P2 的 service/http 工作。
@@ -113,11 +113,12 @@ run_once():
       x 能加入 iff:
         (a) 时间窗: max(团内起点 ∪ {x.start}) <= min(团内终点 ∪ {x.end})
             [Helly 性质: 区间两两相交 ⇒ 全体相交, 故只需维护这两个最值, O(1)]
-        (b) 性别偏好(朴素重验, 团 ≤ 4 人成本可忽略):
-            对团内每个 p:  p.pref==female_only ⇒ 团内所有人(含x) gender==female
-                            p.pref==male_only   ⇒ 团内所有人 gender==male
-            且 x.pref==female_only ⇒ 团内所有人 gender==female
-                x.pref==male_only   ⇒ 团内所有人 gender==male
+        (b) 性别偏好(契约语义: 偏好只约束「其他成员」, 不含本人——contract §1; 团 ≤ 4 人朴素即可):
+            入团不变量: 每次加入都双向校验 ⇒ 现有成员间偏好恒满足,
+            因此只校验候选 x 两个方向, 无需团内两两重验:
+            · x.pref==female_only ⇒ 现有成员全为 female; x.pref==male_only ⇒ 全为 male
+            · 现有成员 p.pref==female_only ⇒ x 为 female; p.pref==male_only ⇒ x 为 male
+            (单元素团平凡满足; male+female_only 合法——"想与女性同车", 并非自相矛盾)
         (c) 加入后容量不超
       满足则加入
     若团人数 >= min_group_size(默认 2, 可配): 生成 Proposal(成员→proposed, 记 proposal_id,
