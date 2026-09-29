@@ -31,9 +31,10 @@ class MatchEngine {
     int proposal_count() const { return next_proposal_id_ - 1; }
 
    private:
-    // 性别偏好朴素重验（团 ≤ 4 人，成本可忽略）：对团内每个成员 p（含候选 x）：
-    // p.pref==female_only ⇒ 团内所有人（含 x）gender==female；male_only 同理；
-    // x 的偏好同样约束全团（含 x 自身性别）。
+    // 性别偏好校验（契约语义：偏好只约束「同车其他成员」，不含本人——contract §1）。
+    // 入团不变量：现有成员间偏好两两已满足（每次加入都做过双向校验），
+    // 因此只校验候选 x 的两个方向，无需团内两两重验：
+    //   (1) x 的偏好约束现有成员；(2) 现有成员的偏好约束 x。
     bool gender_compatible(const std::vector<int>& member_ids, int candidate_id) const;
 
     void emit_proposed(const Proposal& proposal, int64_t now_ms);

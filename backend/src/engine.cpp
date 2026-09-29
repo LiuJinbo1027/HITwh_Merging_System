@@ -85,34 +85,24 @@ std::vector<Proposal> MatchEngine::run_once(int64_t now_ms) {
 bool MatchEngine::gender_compatible(const std::vector<int>& member_ids, int candidate_id) const {
     const Passenger* cand = pool_->get(candidate_id);
     if (cand == nullptr) return false;
-    // 团内每个成员 p 的偏好约束全团（含候选）
+    // 契约语义（contract §1）：偏好只约束「同车其他成员」，不含本人。
+    // 入团不变量：现有成员之间的偏好两两已满足（每次加入都做过本双向校验），
+    // 因此只校验候选 x 的两个方向，无需团内重验（单元素团平凡满足）。
+    //   (1) x 的偏好约束现有成员（现有成员是 x 的「其他成员」）
+    if (cand->pref == GenderPref::kFemaleOnly) {
+        for (int mid : member_ids) {
+            if (pool_->get(mid)->gender != Gender::kFemale) return false;
+        }
+    } else if (cand->pref == GenderPref::kMaleOnly) {
+        for (int mid : member_ids) {
+            if (pool_->get(mid)->gender != Gender::kMale) return false;
+        }
+    }
+    //   (2) 现有成员的偏好约束 x（x 是他们新的「其他成员」）
     for (int mid : member_ids) {
         const Passenger* p = pool_->get(mid);
-        if (p->pref == GenderPref::kFemaleOnly) {
-            for (int m : member_ids) {
-                if (pool_->get(m)->gender != Gender::kFemale) return false;
-            }
-            if (cand->gender != Gender::kFemale) return false;
-        }
-        if (p->pref == GenderPref::kMaleOnly) {
-            for (int m : member_ids) {
-                if (pool_->get(m)->gender != Gender::kMale) return false;
-            }
-            if (cand->gender != Gender::kMale) return false;
-        }
-    }
-    // 候选 x 的偏好同样约束全团（含 x 自身性别）
-    if (cand->pref == GenderPref::kFemaleOnly) {
-        for (int m : member_ids) {
-            if (pool_->get(m)->gender != Gender::kFemale) return false;
-        }
-        if (cand->gender != Gender::kFemale) return false;
-    }
-    if (cand->pref == GenderPref::kMaleOnly) {
-        for (int m : member_ids) {
-            if (pool_->get(m)->gender != Gender::kMale) return false;
-        }
-        if (cand->gender != Gender::kMale) return false;
+        if (p->pref == GenderPref::kFemaleOnly && cand->gender != Gender::kFemale) return false;
+        if (p->pref == GenderPref::kMaleOnly && cand->gender != Gender::kMale) return false;
     }
     return true;
 }

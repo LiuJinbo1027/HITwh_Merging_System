@@ -55,8 +55,6 @@ CheckResult validate(const std::vector<Proposal>& proposals, const MatchPool& po
         int head = 0;
         int max_start = -1;
         int min_end = 1441;
-        bool any_female_only = false;
-        bool any_male_only = false;
         for (int id : p.member_ids) {
             const Passenger* m = pool.get(id);
             if (m == nullptr) {
@@ -67,18 +65,27 @@ CheckResult validate(const std::vector<Proposal>& proposals, const MatchPool& po
             max_start = std::max(max_start, m->win.start_min);
             min_end = std::min(min_end, m->win.end_min);
             if (m->status != Status::kProposed || m->proposal_id != p.id) r.proposed_ok = false;
-            if (m->pref == GenderPref::kFemaleOnly) any_female_only = true;
-            if (m->pref == GenderPref::kMaleOnly) any_male_only = true;
         }
         if (p.depart_min != max_start) r.depart_correct = false;
         if (max_start > min_end) r.windows_overlap = false;  // Helly：两两相交 ⇒ 全体相交
         if (head > 4) r.capacity_ok = false;
         if (head < min_group_size) r.head_ok = false;
+        // 性别偏好（契约语义：只约束「其他成员」，不含本人——contract §1）
         for (int id : p.member_ids) {
             const Passenger* m = pool.get(id);
             if (m == nullptr) continue;
-            if (any_female_only && m->gender != Gender::kFemale) r.gender_ok = false;
-            if (any_male_only && m->gender != Gender::kMale) r.gender_ok = false;
+            if (m->pref != GenderPref::kFemaleOnly && m->pref != GenderPref::kMaleOnly) continue;
+            for (int other_id : p.member_ids) {
+                if (other_id == id) continue;  // 本人不受自己偏好约束
+                const Passenger* o = pool.get(other_id);
+                if (o == nullptr) continue;
+                if (m->pref == GenderPref::kFemaleOnly && o->gender != Gender::kFemale) {
+                    r.gender_ok = false;
+                }
+                if (m->pref == GenderPref::kMaleOnly && o->gender != Gender::kMale) {
+                    r.gender_ok = false;
+                }
+            }
         }
     }
     return r;
@@ -165,16 +172,40 @@ TEST_CASE("AC-1.3 male_only 乘客在任何提案中不与女性同车") {
     CHECK(r.gender_ok);
 }
 
-TEST_CASE("AC-1.3 冲突偏好（一女性偏好男 + 一男性偏好女）同团不可行") {
+TEST_CASE("AC-1.3 交叉偏好（女限男 + 男限女）互相满足可同车") {
     MatchPool pool;
     MatchEngine engine(&pool);
-    // 偏好约束全团含本人：女性 male_only 要求全男性（含自己）与男性 female_only 互斥
+    // 契约语义：偏好只约束其他成员——她要求对方是男，他要求对方是女，恰好互相满足
     const int f = add(pool, 1, Gender::kFemale, GenderPref::kMaleOnly, 500, 600);
     const int m = add(pool, 1, Gender::kMale, GenderPref::kFemaleOnly, 510, 600);
     const auto proposals = engine.run_once(0);
-    CHECK(proposals.empty());  // 两者都无法与任何人成团
-    CHECK(pool.get(f)->status == Status::kWaiting);
-    CHECK(pool.get(m)->status == Status::kWaiting);
+    REQUIRE(proposals.size() == 1);
+    CHECK(has(proposals[0].member_ids, f));
+    CHECK(has(proposals[0].member_ids, m));
+    const auto r = validate(proposals, pool);
+    CHECK(r.gender_ok);
+}
+
+TEST_CASE("AC-1.3 偏好不含本人：男 + 限女 可与女性同车") {
+    MatchPool pool;
+    MatchEngine engine(&pool);
+    const int m1 = add(pool, 1, Gender::kMale, GenderPref::kFemaleOnly, 500, 600);
+    const int f1 = add(pool, 1, Gender::kFemale, GenderPref::kNone, 510, 600);
+    const auto proposals = engine.run_once(0);
+    REQUIRE(proposals.size() == 1);
+    CHECK(has(proposals[0].member_ids, m1));
+    CHECK(has(proposals[0].member_ids, f1));
+    const auto r = validate(proposals, pool);
+    CHECK(r.gender_ok);
+}
+
+TEST_CASE("AC-1.3 约束方向不因本人性别翻转：限女的男乘客不与男性同车") {
+    MatchPool pool;
+    MatchEngine engine(&pool);
+    const int m1 = add(pool, 1, Gender::kMale, GenderPref::kFemaleOnly, 500, 600);
+    add(pool, 1, Gender::kMale, GenderPref::kNone, 510, 600);
+    const auto proposals = engine.run_once(0);
+    CHECK(proposals.empty());  // m1 要求其他成员为女，另一男性不满足；双方都无法成团
 }
 
 TEST_CASE("AC-1.3 混合偏好：female_only 与 male_only 各自按偏好成团") {
