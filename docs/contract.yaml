@@ -116,9 +116,9 @@ endpoints:
       response: { proposals: "[{proposal_id, member_ids, depart_min}]" }, errors: [] }
   - { method: POST, path: /api/match/optimize, fr: FR-17, summary: "全局优化匹配（P4 弹性）",
       response: { proposals: "[{proposal_id, member_ids, depart_min}]" }, errors: [] }
-  - { method: GET, path: /api/match/pool, fr: FR-10, summary: "匹配池（waiting 乘客，按 start_min 升序）",
+  - { method: GET, path: /api/match/pool, fr: FR-10, summary: "匹配池（非终态乘客 waiting/proposed/grouped，按 start_min 升序）",
       response: { passengers: "[types:passenger]" }, errors: [] }
-  - { method: GET, path: /api/match/groups, fr: FR-11, summary: "已成团列表",
+  - { method: GET, path: /api/match/groups, fr: FR-11, summary: "进行中的成团列表（completed/dissolved 即时移除）",
       response: { groups: "[{group_id, member_ids, depart_min, formed_at_ms}]" }, errors: [] }
   - { method: GET, path: /api/events, fr: FR-12, summary: "事件流增量轮询",
       query: { since_id: { type: int, default: 0 }, limit: { type: int, default: 100 } },
@@ -153,4 +153,5 @@ state_machine:
   - { from: proposed, event: "改时间/取消", to: "waiting|cancelled", note: "提案解散、其余成员回池；本人按新窗重入桶或 cancelled" }
   - { from: grouped, event: "改时间/取消", to: "waiting|cancelled", note: "团解散→其余成员回池；本人重入桶或 cancelled" }
   - { from: grouped, event: "到点(depart_min)/手动 complete", to: completed }
+  - group_list_rule: "/api/match/groups 仅返回进行中的团；completed 与 dissolved 即时移除"
   - virtual_auto_agree: "is_virtual==true 的成员在提案内停留 >= virtual_agree_delay_ms 后，以 virtual_agree_prob 概率 agree，否则 reject（StateMachine::tick 内处理）"
