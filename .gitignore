@@ -16,3 +16,6 @@ frontend/.vite/
 .idea/
 .vscode/
 *.user
+
+# P4 封存（恢复后删除本行）
+.p4_archive/
