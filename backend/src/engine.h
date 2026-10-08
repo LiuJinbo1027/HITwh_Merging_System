@@ -28,6 +28,15 @@ class MatchEngine {
     // 事件出口：默认空实现；P2 接 EventLog。P1 只发 proposed 事件。
     void set_event_sink(std::function<void(const Event&)> sink) { sink_ = std::move(sink); }
 
+    // 运行时更新参数（P2 /api/config 的 proposal_ttl_ms 即改即生效）
+    void set_config(const EngineConfig& cfg) { cfg_ = cfg; }
+
+    // reset 用：清空提案/事件 id 计数（P2 /api/reset）
+    void reset() {
+        next_proposal_id_ = 1;
+        next_event_id_ = 1;
+    }
+
     int proposal_count() const { return next_proposal_id_ - 1; }
 
    private:

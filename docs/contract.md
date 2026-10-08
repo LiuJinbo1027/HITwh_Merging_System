@@ -1,7 +1,7 @@
 # 拼车匹配工具 · 接口契约（唯一事实源）
 
-- schema_version: 1.0-draft
-- status: DRAFT（P1 末冻结 v1，此后字段变更须双人确认、先改本文档再改代码）
+- schema_version: 1.0
+- status: FROZEN（P1 末冻结 v1.0；P2 仅补充语义澄清、无字段增删；此后字段变更须双人确认、先改本文档再改代码）
 - 机器可读镜像：[contract.yaml](contract.yaml)（供 AI/工具解析；两处不一致以本文件为准）
 - 通信：HTTP + JSON，前端经 Vite dev proxy 访问 `/api/*` → `http://127.0.0.1:8080`
 
@@ -11,6 +11,7 @@
 2. 字段全部 snake_case；时间表示：`date` 字符串 `"YYYY-MM-DD"` + `start_min`/`end_min`（0-1440 整数）。
    冻结规则：单日、单方向（市区→机场）、`start_min ≤ end_min`（跨午夜不支持）。
 3. 时间窗重叠判定（可同车条件）：`max(start_min) ≤ min(end_min)`。
+4. 失败响应 HTTP 状态码统一 400（成功 200）；业务语义以信封内 `code` 为准，前端按 `code` 分支。
 
 ## 1. 乘客字段（API、状态机、前端表单三处一致）
 
@@ -38,7 +39,7 @@
 | POST | `/api/passengers/{id}/agree` | FR-6 同意提案；全员同意则成团 → `{proposal_id, proposal_state}` |
 | POST | `/api/passengers/{id}/reject` | FR-6 拒绝提案；提案解散回池 → `{proposal_id, proposal_state:"dissolved"}` |
 | POST | `/api/match/trigger` | FR-4 手动触发一轮贪心匹配 → `{proposals:[{proposal_id, member_ids, depart_min}]}` |
-| POST | `/api/match/optimize` | FR-17（P4 弹性）全局优化匹配，返回同 trigger |
+| POST | `/api/match/optimize` | FR-17（P4 弹性）全局优化匹配，返回同 trigger（P2 为贪心回退，见澄清） |
 | GET | `/api/match/pool` | FR-10 → `{passengers:[...]}`（非终态乘客：waiting / proposed / grouped，按 start_min 升序） |
 | GET | `/api/match/groups` | FR-11 → `{groups:[{group_id, member_ids, depart_min, formed_at_ms}]}`（仅进行中的团；completed / dissolved 即时移除） |
 | GET | `/api/events?since_id=0&limit=100` | FR-12 → `{next_since_id, events:[...]}` |
@@ -64,6 +65,28 @@
   {"event_id":101,"event_type":"proposed","payload":{"proposal_id":7,"member_ids":[42,17,9],"depart_min":525},"ts_ms":1758940000000},
   {"event_id":102,"event_type":"agreed","payload":{"passenger_id":42,"proposal_id":7},"ts_ms":1758940003000}]}}
 ```
+
+### P2 语义澄清（接口澄清；无字段增删）
+
+- `POST /api/virtual/generate`：body `{"count":3,"date":"2030-06-01"}`；`count` 1-1000（缺省取
+  `stream_batch_size`），`date` 可选（缺省为服务器当天）；分布参数固定（高峰窗、人数/性别/偏好比例，
+  见 `backend/src/virtual_source.cpp`），不随请求改变。
+- `POST /api/virtual/stream/start`：body `{"interval_ms":1000,"batch_size":3}`，两项均可选（缺省取
+  config）；启动时立即生成首批（满足「启动后 10s 内出现 created」），此后每 `interval_ms` 一批；
+  运行中重复启动 → 40903。
+- `POST /api/match/optimize`：P2 阶段等价回退贪心（P4 替换为全局优化，n>30 同样回退）；返回结构与
+  `trigger` 相同，且提案同样进入状态机登记（返回的 proposal 可直接 agree）。
+- `GET /api/events`：`next_since_id` = 本次返回的最后一条事件 id（无新事件时回显 `since_id`，前端下次
+  轮询直接透传）；`limit` 收敛到 `[1,1000]`，`since_id` 不小于 0。
+- `GET /api/stats` 字段语义：`pool_size` = 非终态（waiting/proposed/grouped）乘客数；`group_count` =
+  进行中的团数；`avg_group_size` = 进行中团平均每车人数（Σparty_size ÷ 团数，无团为 0）；
+  `female_ratio` = 非终态乘客中 female 占比（空池为 0）；`gender_pref_satisfied_ratio` =
+  proposed/grouped 中带偏好乘客「同车其他成员满足其偏好」的比例（分母为 0 时约定 1.0）。
+- `POST /api/reset`：清空池/提案/团/事件/虚拟流，配置回默认、随机序列复位；**事件 id 不倒退**——
+  reset 后第一条事件即 `reset` 且 id 大于此前所有事件，客户端旧 `since_id` 不失效。
+- 到点自动完成：按服务器本地时区把 `date + depart_min` 换算成时刻，`now ≥ 该时刻` 时自动 completed；
+  仅对「成团时刻早于出发时刻」的团生效，成团时已过出发时刻的团保持 grouped 等待手动 complete
+  （避免演示/补录场景中团瞬间消失）。
 
 ## 3. event_type 枚举
 
@@ -93,13 +116,21 @@
 | stream_interval_ms | 3000 | 虚拟流生成周期 |
 | stream_batch_size | 5 | 每批生成人数 |
 
+PUT 支持任意子集且即改即生效（如 `proposal_ttl_ms` 立即约束新提案的超时）；`auto_match_interval_ms`
+在 0 ↔ 非 0 之间切换时记录 `auto_match_started` / `auto_match_stopped` 事件。
+
 ## 6. 状态机（详情见 docs/state_machine.md，P2 定稿）
 
 ```
 waiting →(引擎提案)→ proposed →(全员同意)→ grouped →(到点/手动)→ completed
-任意态 →(cancel)→ cancelled；waiting/proposed/grouped →(改时间)→ 重入桶/解散提案/解散团
+任意态 →(cancel)→ cancelled
+waiting/proposed/grouped →(修改任意字段)→ 重入桶 / 解散提案 / 解散团
 proposed →(拒绝/超时)→ 全体回 waiting 重匹配
 ```
 
-注：`/api/match/groups` 仅返回进行中的团——completed（到点/手动完成）与 dissolved（成员取消/改时间）
+注 1：proposed/grouped 上的修改不限于改时间——改人数、性别等任何字段都解散提案/团后再按新字段重入
+（否则破坏容量与性别偏好不变量）；其余成员一律回 waiting。
+注 2：`/api/match/groups` 仅返回进行中的团——completed（到点/手动完成）与 dissolved（成员取消/改时间）
 的团即时从列表移除；其成员按各自终态从 pool 列表消失（completed）或回池重入（dissolved → waiting）。
+注 3：`is_virtual` 乘客在提案内停留 ≥ `virtual_agree_delay_ms` 后，以 `virtual_agree_prob` 概率同意、
+否则拒绝（拒绝即回池重匹配，用于演示）。

@@ -70,6 +70,7 @@ std::vector<Proposal> MatchEngine::run_once(int64_t now_ms) {
             p.member_ids = member_ids;
             p.depart_min = max_start;
             p.deadline_ms = now_ms + cfg_.proposal_ttl_ms;
+            p.created_at_ms = now_ms;
             for (int id : member_ids) {
                 pool_->set_status(id, Status::kProposed, p.id);
             }

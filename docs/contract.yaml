@@ -3,8 +3,8 @@
 # 本文件由 contract.md 派生；改动契约时两处同步更新，且须双人确认。
 
 meta:
-  schema_version: "1.0-draft"
-  status: DRAFT # P1 末冻结 v1，此后字段变更须双人确认、先改 contract.md 再改代码
+  schema_version: "1.0"
+  status: FROZEN # P1 末冻结 v1.0；P2 仅补充语义澄清、无字段增删；此后字段变更须双人确认、先改 contract.md 再改代码
   base_path: /api
   transport: "HTTP + JSON；前端经 Vite dev proxy /api/* → http://127.0.0.1:8080"
 
@@ -12,6 +12,7 @@ global:
   envelope:
     success: { code: 0, message: "ok", data: "<对象>" }
     failure: { code: "<非0>", message: "<错误说明>", data: null }
+  error_http_status: 400 # 业务错误统一 400（成功 200）；语义以信封内 code 为准
   naming: snake_case
   time:
     date_format: "YYYY-MM-DD"
@@ -47,7 +48,7 @@ types:
     proposal_id: int
     member_ids: { type: "[int]", description: "2-4 人，人数之和 <= 4" }
     depart_min: { type: int, description: "= max(成员 start_min)" }
-    deadline_ms: { type: int, description: "now + proposal_ttl_ms" }
+    deadline_ms: { type: int, description: "内部字段（now + proposal_ttl_ms），不出现在 API 响应" }
   group:
     group_id: int
     member_ids: "[int]"
@@ -62,15 +63,15 @@ types:
     proposal_ttl_ms: { default: 60000, description: "同意等待超时（FR-7）" }
     virtual_agree_prob: { default: 0.9, range: [0, 1], description: "虚拟乘客自动同意概率，拒绝以演示重匹配" }
     virtual_agree_delay_ms: { default: 2000, description: "虚拟乘客同意前思考延迟" }
-    auto_match_interval_ms: { default: 5000, description: "自动匹配周期，0=关闭" }
+    auto_match_interval_ms: { default: 5000, description: "自动匹配周期，0=关闭；0↔非0 切换记 auto_match_started/stopped 事件" }
     stream_interval_ms: { default: 3000, description: "虚拟流生成周期" }
     stream_batch_size: { default: 5, description: "每批生成人数" }
   stats:
-    pool_size: int
-    group_count: int
-    avg_group_size: float
-    female_ratio: float
-    gender_pref_satisfied_ratio: float
+    pool_size: { type: int, description: "非终态（waiting/proposed/grouped）乘客数" }
+    group_count: { type: int, description: "进行中的团数" }
+    avg_group_size: { type: float, description: "进行中团平均每车人数（Σparty_size ÷ 团数，无团为 0）" }
+    female_ratio: { type: float, description: "非终态乘客中 female 占比（空池为 0）" }
+    gender_pref_satisfied_ratio: { type: float, description: "proposed/grouped 中带偏好者「同车其他成员满足其偏好」的比例；分母 0 时约定 1.0" }
 
 event_types:
   - { type: created, payload: { passenger_id: int } }
@@ -103,55 +104,56 @@ endpoints:
   - { method: POST, path: /api/passengers, fr: FR-1, summary: "注册拼车者",
       request: [party_size, gender, gender_preference, date, start_min, end_min],
       response: { passenger_id: int, status: waiting }, errors: [40001] }
-  - { method: PUT, path: /api/passengers/{id}, fr: FR-2, summary: "修改任意子集（改时间按状态机转移）",
+  - { method: PUT, path: "/api/passengers/{id}", fr: FR-2, summary: "修改任意子集（改时间按状态机转移）",
       request: [party_size, gender, gender_preference, date, start_min, end_min], request_note: "任意子集",
       response: { passenger_id: int }, errors: [40001, 40401, 40901, 40902] }
-  - { method: DELETE, path: /api/passengers/{id}, fr: FR-3, summary: "取消（团内则团解散、其余回池）",
+  - { method: DELETE, path: "/api/passengers/{id}", fr: FR-3, summary: "取消（团内则团解散、其余回池）",
       response: { passenger_id: int, status: cancelled }, errors: [40401, 40901] }
-  - { method: POST, path: /api/passengers/{id}/agree, fr: FR-6, summary: "同意提案；全员同意则成团",
+  - { method: POST, path: "/api/passengers/{id}/agree", fr: FR-6, summary: "同意提案；全员同意则成团",
       response: { proposal_id: int, proposal_state: "grouped|pending" }, errors: [40401, 40901] }
-  - { method: POST, path: /api/passengers/{id}/reject, fr: FR-6, summary: "拒绝提案；提案解散回池",
+  - { method: POST, path: "/api/passengers/{id}/reject", fr: FR-6, summary: "拒绝提案；提案解散回池",
       response: { proposal_id: int, proposal_state: dissolved }, errors: [40401, 40901] }
   - { method: POST, path: /api/match/trigger, fr: FR-4, summary: "手动触发一轮贪心匹配",
       response: { proposals: "[{proposal_id, member_ids, depart_min}]" }, errors: [] }
-  - { method: POST, path: /api/match/optimize, fr: FR-17, summary: "全局优化匹配（P4 弹性）",
+  - { method: POST, path: /api/match/optimize, fr: FR-17, summary: "全局优化匹配（P4 弹性；P2 等价回退贪心，返回同 trigger 且提案同样进入状态机登记）",
       response: { proposals: "[{proposal_id, member_ids, depart_min}]" }, errors: [] }
   - { method: GET, path: /api/match/pool, fr: FR-10, summary: "匹配池（非终态乘客 waiting/proposed/grouped，按 start_min 升序）",
       response: { passengers: "[types:passenger]" }, errors: [] }
   - { method: GET, path: /api/match/groups, fr: FR-11, summary: "进行中的成团列表（completed/dissolved 即时移除）",
       response: { groups: "[{group_id, member_ids, depart_min, formed_at_ms}]" }, errors: [] }
-  - { method: GET, path: /api/events, fr: FR-12, summary: "事件流增量轮询",
-      query: { since_id: { type: int, default: 0 }, limit: { type: int, default: 100 } },
+  - { method: GET, path: /api/events, fr: FR-12, summary: "事件流增量轮询；next_since_id = 本次最后一条事件 id（无新事件回显 since_id）",
+      query: { since_id: { type: int, default: 0, description: "负数按 0 处理" }, limit: { type: int, default: 100, range: [1, 1000] } },
       response: { next_since_id: int, events: "[types:event]" }, errors: [] }
   - { method: GET, path: /api/stats, fr: FR-13, summary: "统计指标",
       response: { pool_size: int, group_count: int, avg_group_size: float, female_ratio: float,
         gender_pref_satisfied_ratio: float }, errors: [] }
-  - { method: POST, path: /api/groups/{id}/complete, fr: FR-14, summary: "行程完成（到点自动或手动）",
+  - { method: POST, path: "/api/groups/{id}/complete", fr: FR-14, summary: "行程完成（到点自动或手动）",
       response: { group_id: int, status: completed }, errors: [40401, 40901] }
-  - { method: POST, path: /api/virtual/generate, fr: FR-8, summary: "批量生成虚拟乘客",
-      request: [count, "分布参数（含性别偏好分布特征）"],
+  - { method: POST, path: /api/virtual/generate, fr: FR-8, summary: "批量生成虚拟乘客（分布参数固定：高峰窗 + 人数/性别/偏好比例）",
+      request: { count: "int 1-1000，可选，缺省 stream_batch_size", date: "YYYY-MM-DD，可选，缺省服务器当天" },
       response: { generated: "[passenger_id]" }, errors: [40001] }
-  - { method: POST, path: /api/virtual/stream/start, fr: FR-9, summary: "启动定时虚拟乘客流",
-      request: [interval_ms, batch_size], response: { running: true }, errors: [40903] }
+  - { method: POST, path: /api/virtual/stream/start, fr: FR-9, summary: "启动定时虚拟乘客流（启动即生成首批；运行中重复启动 40903）",
+      request: { interval_ms: "int，可选，缺省取 config", batch_size: "int，可选，缺省取 config" }, response: { running: true }, errors: [40001, 40903] }
   - { method: POST, path: /api/virtual/stream/stop, fr: FR-9, summary: "停止虚拟乘客流",
       response: { running: false }, errors: [] }
   - { method: GET, path: /api/config, fr: FR-15, summary: "查询配置", response: "types:config", errors: [] }
   - { method: PUT, path: /api/config, fr: FR-15, summary: "修改配置（即改即生效）",
       request: "types:config（任意子集）", response: "types:config", errors: [40001] }
-  - { method: POST, path: /api/reset, fr: FR-16, summary: "清空全部状态（演示用）",
+  - { method: POST, path: /api/reset, fr: FR-16, summary: "清空全部状态（池/提案/团/事件/流，配置回默认、随机序列复位；事件 id 不倒退，reset 后第一条事件为 reset）",
       response: {}, errors: [] }
   - { method: GET, path: /api/health, fr: "联调", summary: "健康检查",
       response: { uptime_ms: int }, errors: [] }
 
 state_machine:
   - { from: waiting, event: "引擎提案", to: proposed, note: "记 proposal_id" }
-  - { from: waiting, event: "改时间", to: waiting, note: "重入新桶" }
+  - { from: waiting, event: "修改任意字段", to: waiting, note: "重入新桶" }
   - { from: waiting, event: "取消", to: cancelled }
   - { from: proposed, event: "同意", to: "grouped|proposed", note: "全员同意→grouped；否则仍 proposed" }
   - { from: proposed, event: "拒绝", to: waiting, note: "提案解散→全体成员回池可重匹配" }
   - { from: proposed, event: "超时(proposal_ttl_ms)", to: waiting, note: "同上，事件记 proposal_expired" }
-  - { from: proposed, event: "改时间/取消", to: "waiting|cancelled", note: "提案解散、其余成员回池；本人按新窗重入桶或 cancelled" }
-  - { from: grouped, event: "改时间/取消", to: "waiting|cancelled", note: "团解散→其余成员回池；本人重入桶或 cancelled" }
+  - { from: proposed, event: "修改任意字段/取消", to: "waiting|cancelled", note: "提案解散、其余成员回池；本人按新字段重入桶或 cancelled（改人数/性别同样解散，保容量与偏好不变量）" }
+  - { from: grouped, event: "修改任意字段/取消", to: "waiting|cancelled", note: "团解散→其余成员回池；本人重入桶或 cancelled" }
   - { from: grouped, event: "到点(depart_min)/手动 complete", to: completed }
   - group_list_rule: "/api/match/groups 仅返回进行中的团；completed 与 dissolved 即时移除"
+  - auto_complete_rule: "按服务器本地时区换算 date + depart_min；仅当成团时刻早于出发时刻时到点自动 completed，否则保持 grouped 等待手动完成"
   - virtual_auto_agree: "is_virtual==true 的成员在提案内停留 >= virtual_agree_delay_ms 后，以 virtual_agree_prob 概率 agree，否则 reject（StateMachine::tick 内处理）"

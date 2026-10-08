@@ -34,6 +34,25 @@ void MatchPool::remove(int id) {
     passengers_.erase(it);
 }
 
+void MatchPool::update(int id, const Passenger& fields) {
+    Passenger* p = get(id);
+    if (p == nullptr) return;
+    const bool is_waiting = p->status == Status::kWaiting;
+    if (is_waiting) remove_from_waiting_indexes(*p);
+    p->party_size = fields.party_size;
+    p->gender = fields.gender;
+    p->pref = fields.pref;
+    p->win = fields.win;
+    if (is_waiting) add_to_waiting_indexes(*p);
+}
+
+void MatchPool::clear() {
+    passengers_.clear();
+    buckets_.clear();
+    waiting_order_.clear();
+    next_id_ = 1;
+}
+
 void MatchPool::set_status(int id, Status status, int proposal_id, int group_id) {
     Passenger* p = get(id);
     if (p == nullptr) return;

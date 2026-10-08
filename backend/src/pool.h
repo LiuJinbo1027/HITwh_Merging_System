@@ -25,6 +25,14 @@ class MatchPool {
     // 移出池（P2 状态机/reset 使用；P1 引擎不删乘客）
     void remove(int id);
 
+    // 更新乘客可变字段（party_size/gender/pref/win；P2 PUT 用）。
+    // waiting 时先移出索引、改字段、再按新窗口重入（窗口变化必须走这里才能保持桶索引一致）；
+    // 其他状态下只改字段，是否解散提案/团由状态机决定。
+    void update(int id, const Passenger& fields);
+
+    // 清空全部乘客与索引，id 计数重置（P2 reset 用）
+    void clear();
+
     // 修改状态；跨 waiting 边界时同步桶索引与扫描线
     void set_status(int id, Status status, int proposal_id = -1, int group_id = -1);
 

@@ -33,6 +33,12 @@ class TimeBucketIndex {
     int size() const { return static_cast<int>(wins_.size()); }
     bool empty() const { return wins_.empty(); }
 
+    // 清空全部索引（P2 reset 用）
+    void clear() {
+        for (auto& bucket : buckets_) bucket.clear();
+        wins_.clear();
+    }
+
    private:
     // 分钟 → 桶下标；1440 归入最后一桶（0-1439 正常，1440 是闭区间端点）
     static int bucket_of(int minute) { return std::min(std::max(minute / kBucketMinutes, 0), 143); }

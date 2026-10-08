@@ -1,5 +1,5 @@
 # 后端单测：一个模块一个可执行，ctest 注册（manual_A：test_<模块>.cpp）
-foreach(test_name test_time_bucket test_pool test_engine)
+foreach(test_name test_time_bucket test_pool test_engine test_state_machine test_virtual_source test_service)
     add_executable(${test_name} ${test_name}.cpp)
     target_link_libraries(${test_name} PRIVATE merging_core)
     add_test(NAME ${test_name} COMMAND ${test_name})
