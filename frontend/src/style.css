@@ -115,6 +115,53 @@ body {
   padding: 14px 16px;
 }
 
+/* ---- 表单（PassengerForm / VirtualControl 共用） ---- */
+.form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+}
+.form .field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.form .field label {
+  font-size: 12px;
+  color: var(--muted);
+}
+.form input,
+.form select {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+}
+.form input:focus,
+.form select:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+.form .form-actions {
+  grid-column: 1 / -1; /* 按钮行横跨两列 */
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.form .form-msg {
+  font-size: 13px;
+  margin: 0;
+}
+.form .form-msg.ok {
+  color: var(--tag-grouped-fg);
+}
+.form .form-msg.err {
+  color: var(--tag-cancelled-fg);
+}
+
 /* 各视图共用的页头样式 */
 .head h2 {
   margin: 0 0 2px;

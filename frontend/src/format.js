@@ -18,3 +18,16 @@ export function fmtTime(ms) {
 export function fmtDateShort(d) {
   return d.slice(5)
 }
+
+// 表单输入 "HH:MM" → 分钟数（契约 start_min/end_min 的录入换算；fmtMin 的逆运算）
+export function timeToMin(hhmm) {
+  const [h, m] = hhmm.split(':').map(Number)
+  return h * 60 + m
+}
+
+// 本地时区今天的 "YYYY-MM-DD"（表单 date 字段默认值；不用 toISOString——那是 UTC，凌晨会差一天）
+export function todayStr() {
+  const d = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}

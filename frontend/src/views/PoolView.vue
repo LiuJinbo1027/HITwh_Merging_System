@@ -1,10 +1,15 @@
 <script setup>
-// P1 静态版：先渲染 mock 假数据，把「长什么样」定下来；P2 接真实接口。
-// 字段名与 docs/contract.md §1 乘客字段逐字一致（P1 验收项）。
-import { mockPool } from '../mock'
+// P2：接真实接口 /api/match/pool（FR-10：非终态乘客 waiting/proposed/grouped，按 start_min 升序），
+// usePolling 每 2s 轮询——录入乘客 / 批量生成后本视图自动出现新行，无需跨组件通信。
+// P3：同意/拒绝按钮接 api.agree / api.reject（按钮可用性已按状态机限定：仅 proposed 可选，
+// 与契约 40901「对 waiting 乘客 agree → 状态冲突」一致）。操作后无需手动刷新——轮询自动更新。
+import { ref } from 'vue'
+import { api, usePolling } from '../api'
 import { fmtMin, fmtDateShort } from '../format'
-// TODO(P2): 接 api.pool()。FR-10 已调整为返回非终态乘客（waiting/proposed/grouped），
-// 同意/拒绝按钮落在 proposed 行，与契约 40901 状态冲突约束一致。
+
+const { data: pool, error } = usePolling(() => api.pool(), 2000)
+
+const msg = ref(null)
 
 // 枚举值 → 中文标签：映射表集中管理，改文案只动这里
 const STATUS_LABEL = {
@@ -21,13 +26,21 @@ function relationOf(p) {
   return '—'
 }
 
-// 同意/拒绝：P1 静态版只占位。按钮可用性已按状态机限定（仅 proposed 可选），
-// 与契约 40901「对 waiting 乘客 agree → 状态冲突」一致。
-function onAgree(p) {
-  // TODO(P2): await api.agree(p.passenger_id) 后刷新列表
+async function onAgree(p) {
+  msg.value = null
+  try {
+    await api.agree(p.passenger_id) // 全员同意则成团；未全员返回 proposal_state=pending
+  } catch (e) {
+    msg.value = { type: 'err', text: `同意失败：${e.message}` }
+  }
 }
-function onReject(p) {
-  // TODO(P2): await api.reject(p.passenger_id) 后刷新列表
+async function onReject(p) {
+  msg.value = null
+  try {
+    await api.reject(p.passenger_id) // 提案解散，全体回池
+  } catch (e) {
+    msg.value = { type: 'err', text: `拒绝失败：${e.message}` }
+  }
 }
 </script>
 
@@ -35,42 +48,51 @@ function onReject(p) {
   <section class="pool">
     <header class="head">
       <h2>匹配池</h2>
-      <p class="hint">P1 静态演示数据（mock）。P2 接 /api/match/pool 实时刷新。</p>
+      <p class="hint">实时数据：/api/match/pool 每 2 秒轮询。</p>
+      <p v-if="msg" class="msg">{{ msg.text }}</p>
     </header>
-    <table class="table">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>人数</th>
-          <th>性别</th>
-          <th>性别偏好</th>
-          <th>日期</th>
-          <th>时间窗</th>
-          <th>状态</th>
-          <th>关联</th>
-          <th>操作</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="p in mockPool" :key="p.passenger_id">
-          <td>
-            <span class="num">#{{ p.passenger_id }}</span>
-            <span v-if="p.is_virtual" class="tag virtual">虚拟</span>
-          </td>
-          <td>{{ p.party_size }}</td>
-          <td>{{ GENDER_LABEL[p.gender] }}</td>
-          <td>{{ PREF_LABEL[p.gender_preference] }}</td>
-          <td>{{ fmtDateShort(p.date) }}</td>
-          <td class="num">{{ fmtMin(p.start_min) }}–{{ fmtMin(p.end_min) }}</td>
-          <td><span class="tag" :class="p.status">{{ STATUS_LABEL[p.status] }}</span></td>
-          <td class="rel">{{ relationOf(p) }}</td>
-          <td class="actions">
-            <button class="btn" :disabled="p.status !== 'proposed'" @click="onAgree(p)">同意</button>
-            <button class="btn danger" :disabled="p.status !== 'proposed'" @click="onReject(p)">拒绝</button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+
+    <!-- 三态渲染：首次加载 / 后端异常 / 表格。error 时轮询仍在跑，后端恢复后表格自动出现 -->
+    <p v-if="!pool && !error" class="note">加载中…</p>
+    <p v-else-if="error" class="note err">后端未连接或响应异常：{{ error }}（每 2 秒自动重试）</p>
+
+    <template v-else-if="pool">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>人数</th>
+            <th>性别</th>
+            <th>性别偏好</th>
+            <th>日期</th>
+            <th>时间窗</th>
+            <th>状态</th>
+            <th>关联</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="p in pool.passengers" :key="p.passenger_id">
+            <td>
+              <span class="num">#{{ p.passenger_id }}</span>
+              <span v-if="p.is_virtual" class="tag virtual">虚拟</span>
+            </td>
+            <td>{{ p.party_size }}</td>
+            <td>{{ GENDER_LABEL[p.gender] }}</td>
+            <td>{{ PREF_LABEL[p.gender_preference] }}</td>
+            <td>{{ fmtDateShort(p.date) }}</td>
+            <td class="num">{{ fmtMin(p.start_min) }}–{{ fmtMin(p.end_min) }}</td>
+            <td><span class="tag" :class="p.status">{{ STATUS_LABEL[p.status] }}</span></td>
+            <td class="rel">{{ relationOf(p) }}</td>
+            <td class="actions">
+              <button class="btn" :disabled="p.status !== 'proposed'" @click="onAgree(p)">同意</button>
+              <button class="btn danger" :disabled="p.status !== 'proposed'" @click="onReject(p)">拒绝</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p v-if="!pool.passengers.length" class="note">池为空。到「总控台」录入乘客或批量生成虚拟乘客。</p>
+    </template>
   </section>
 </template>
 
@@ -114,5 +136,18 @@ function onReject(p) {
 }
 .tag.virtual {
   margin-left: 6px;
+}
+.note {
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.note.err {
+  color: var(--tag-cancelled-fg);
+}
+.msg {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--tag-cancelled-fg);
 }
 </style>

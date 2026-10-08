@@ -14,10 +14,19 @@ const tabs = [
   { key: 'groups', label: '成团' },
   { key: 'events', label: '事件流' },
 ]
-const activeTab = ref('pool')
+
+// 支持 URL 哈希直达某视图（如 /#events）：run_demo 直达总控台、验收截图用
+function tabFromHash() {
+  const h = window.location.hash.slice(1)
+  return tabs.some((t) => t.key === h) ? h : 'pool'
+}
+const activeTab = ref(tabFromHash())
+window.addEventListener('hashchange', () => {
+  activeTab.value = tabFromHash()
+})
 
 // 后端健康状态（沿用 G0 检查；P1 mock 阶段后端未启动不影响静态视图渲染）
-const { data: health, error } = usePolling(api.health, 2000)
+const { data: health, error } = usePolling(api.health, 1000)
 </script>
 
 <template>

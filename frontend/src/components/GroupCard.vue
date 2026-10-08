@@ -6,8 +6,9 @@ import { fmtMin, fmtTime } from '../format'
 
 const props = defineProps({
   group: { type: Object, required: true }, // 契约 group 对象：{group_id, member_ids, depart_min, formed_at_ms}
-  members: { type: Array, required: true }, // member_ids 对应的乘客对象（mock 阶段由父视图拼装）
+  members: { type: Array, required: true }, // member_ids 对应的乘客对象（由父视图用 pool 数据装配）
 })
+const emit = defineEmits(['complete']) // 完成操作 emit 回父级（父级调 api.completeGroup，本组件只展示）
 
 // 派生数据用 computed：依赖变化时自动重算并缓存。
 // 总人数 = Σ party_size（契约 vehicle_capacity：每团 ≤ 4 人）
@@ -15,10 +16,6 @@ const totalSize = computed(() => props.members.reduce((sum, m) => sum + m.party_
 
 // 注：契约 FR-11 规定 /api/match/groups 仅返回进行中的团（completed/dissolved 即时移除），
 // 因此卡片不需要「已完成」状态判断，「完成」按钮恒可用。
-
-function onComplete() {
-  // TODO(P2): await api.completeGroup(props.group.group_id) 后由父视图刷新列表
-}
 
 const GENDER_LABEL = { male: '男', female: '女' }
 </script>
@@ -38,7 +35,7 @@ const GENDER_LABEL = { male: '男', female: '女' }
     </ul>
     <footer class="card-foot">
       <span class="meta">共 {{ totalSize }} 人 · 成团于 {{ fmtTime(group.formed_at_ms) }}</span>
-      <button class="btn primary" @click="onComplete">完成</button>
+      <button class="btn primary" @click="emit('complete', group)">完成</button>
     </footer>
   </article>
 </template>
